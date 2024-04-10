@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include"packet.h"
 
-int verbose = 0;
+//int verbose = 0;
 
 static tcp_packet zero_packet = {.hdr={0}};
 /*
