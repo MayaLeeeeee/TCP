@@ -39,9 +39,10 @@ $(OBJDIR)/%.o:	%.c common.h packet.h
 	@echo "Compilation complete!"
 
 clean:
-	${RM} ${CLIENT_OBJECTS}
-	${RM} ${SERVER_OBJECTS}
-	@if [ -a $(OBJDIR) ]; then rm -r $(OBJDIR); fi;
+	${RM} ${OBJDIR}/rdt_receiver.o
+	${RM} sender/rdt_sender.o
+	${RM} ${OBJDIR}/packet.o
+	${RM} ${OBJDIR}/common.o
 	@echo "Cleanup complete!"
 
 fclean:	clean
