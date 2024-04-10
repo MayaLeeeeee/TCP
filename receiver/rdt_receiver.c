@@ -48,7 +48,7 @@ void pop_buffer(struct tcp_packet **pkt)
     // int buffer_len = sizeof(packet_buffer) / sizeof(packet_buffer[0]);
     for (int i = 0; i < cur_buffer_size; i++) 
     {
-        if ((*packet_buffer[i])->hdr.seqno == (*pkt)->hdr.seqno)
+        if (packet_buffer[i]->hdr.seqno == (*pkt)->hdr.seqno)
         {
             // shift elements to fill the gap
             for (int j = i; j < cur_buffer_size - 1; j++) {

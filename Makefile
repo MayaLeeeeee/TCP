@@ -38,7 +38,7 @@ $(OBJDIR)/%.o:	%.c obj/common.h obj/packet.h
 	@echo "Compilation complete!"
 
 clean:
-	${RM} ${OBJDIR}/rdt_receiver.o
+	${RM} receiver//rdt_receiver.o
 	${RM} sender/rdt_sender.o
 	${RM} ${OBJDIR}/packet.o
 	${RM} ${OBJDIR}/common.o
