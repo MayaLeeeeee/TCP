@@ -11,10 +11,10 @@ LINKER = gcc -o
 # linking flags here
 LFLAGS   = -Wall
 
-OBJDIR = ../obj
+OBJDIR = ./obj
 
-CLIENT_OBJECTS := $(OBJDIR)/rdt_sender.o $(OBJDIR)/common.o $(OBJDIR)/packet.o
-SERVER_OBJECTS := $(OBJDIR)/rdt_receiver.o $(OBJDIR)/common.o $(OBJDIR)/packet.o
+CLIENT_OBJECTS := sender/rdt_sender.o $(OBJDIR)/common.o $(OBJDIR)/packet.o
+SERVER_OBJECTS := receiver/rdt_receiver.o $(OBJDIR)/common.o $(OBJDIR)/packet.o
 
 #Program name
 CLIENT := $(OBJDIR)/rdt_sender
@@ -39,8 +39,14 @@ $(OBJDIR)/%.o:	%.c common.h packet.h
 	@echo "Compilation complete!"
 
 clean:
+	${RM} ${CLIENT_OBJECTS}
+	${RM} ${SERVER_OBJECTS}
 	@if [ -a $(OBJDIR) ]; then rm -r $(OBJDIR); fi;
 	@echo "Cleanup complete!"
+
+fclean:	clean
+	${RM} ${CLIENT}
+	${RM} ${SERVER}
 
 $(OBJDIR):
 	@[ -a $(OBJDIR) ]  || mkdir $(OBJDIR)

@@ -9,8 +9,8 @@
 #include <sys/time.h>
 #include <assert.h>
 
-#include "../common.h"
-#include "../packet.h"
+#include "../obj/common.h"
+#include "../obj/packet.h"
 
 
 /*
