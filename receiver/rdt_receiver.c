@@ -19,15 +19,18 @@
  * In the current implementation the window size is one, hence we have
  * only one send and receive packet
  */
+
+#define WINDOW_SIZE 10
+
 tcp_packet *recvpkt;
 tcp_packet *sndpkt;
 tcp_packet *last_acked_pkt;
 
 int next_seqno = 0;
-int window_size = 10;
+// int window_size = 10;
 int cur_buffer_size = 0;
 
-struct tcp_packet packet_buffer[window_size];
+struct tcp_packet *packet_buffer[WINDOW_SIZE];
 
 void update_seqno()
 {
@@ -45,7 +48,7 @@ void pop_buffer(struct tcp_packet **pkt)
     // int buffer_len = sizeof(packet_buffer) / sizeof(packet_buffer[0]);
     for (int i = 0; i < cur_buffer_size; i++) 
     {
-        if (pakcet_buffer[i]->hdr.seqno == pkt->hdr.seqno)
+        if ((*packet_buffer[i])->hdr.seqno == (*pkt)->hdr.seqno)
         {
             // shift elements to fill the gap
             for (int j = i; j < cur_buffer_size - 1; j++) {
@@ -57,7 +60,7 @@ void pop_buffer(struct tcp_packet **pkt)
     }
 }
 
-void send_ack(int sockfd, struct sockaddr_in *clientaddr)
+void send_ack(int sockfd, struct sockaddr_in *clientaddr, int clientlen)
 {
     sndpkt = make_packet(0);
     sndpkt->hdr.ackno = last_acked_pkt->hdr.seqno + last_acked_pkt->hdr.data_size;
@@ -72,10 +75,10 @@ void send_ack(int sockfd, struct sockaddr_in *clientaddr)
 void write_to_file(FILE **fp, struct timeval *tp, struct tcp_packet **pkt)
 {
     gettimeofday(&tp, NULL);
-    VLOG(DEBUG, "%lu, %d, %d", tp.tv_sec, *pkt->hdr.data_size, *pkt->hdr.seqno);
+    VLOG(DEBUG, "%lu, %d, %d", (*tp).tv_sec, (*pkt)->hdr.data_size, (*pkt)->hdr.seqno);
 
-    fseek(*fp, *pkt->hdr.seqno, SEEK_SET);
-    fwrite(*pkt->data, 1, *pkt->hdr.data_size, fp);
+    fseek(*fp, (*pkt)->hdr.seqno, SEEK_SET);
+    fwrite((*pkt)->data, 1, (*pkt)->hdr.data_size, fp);
 }
 
 void write_buffered_packets(FILE **fp, struct timeval *tp)
@@ -191,27 +194,27 @@ int main(int argc, char **argv) {
 
             // fseek(fp, recvpkt->hdr.seqno, SEEK_SET);
             // fwrite(recvpkt->data, 1, recvpkt->hdr.data_size, fp);
-            write_to_file(&fp, tp, &recvpkt);
+            write_to_file(&fp, &tp, &recvpkt);
 
             last_acked_pkt = recvpkt;
 
-            send_ack(sockfd, &clientaddr);
+            send_ack(sockfd, &clientaddr, clientlen);
 
             if (cur_buffer_size > 0) 
             {
-                write_buffered_packets(&fp);
+                write_buffered_packets(&fp, &tp);
 
-                send_ack(sockfd, &clientaddr);
+                send_ack(sockfd, &clientaddr, clientlen);
             }
         }
         else if (recvpkt->hdr.seqno > next_seqno) // a later packet is received before the one we're waiting for currently
         {
             append_buffer(recvpkt);
-            send_ack(sockfd, &clientaddr);
+            send_ack(sockfd, &clientaddr, clientlen);
         }
         else // received a packet that is already acked
         {
-            send_ack(sockfd, &clientaddr);
+            send_ack(sockfd, &clientaddr, clientlen);
         }
 
     }
