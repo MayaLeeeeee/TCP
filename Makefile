@@ -25,7 +25,6 @@ rmdir    = rmdir
 
 TARGET:	$(OBJDIR) $(CLIENT)	$(SERVER)
 
-
 $(CLIENT):	$(CLIENT_OBJECTS)
 	$(LINKER)  $@  $(CLIENT_OBJECTS)
 	@echo "Link complete!"
@@ -34,7 +33,7 @@ $(SERVER): $(SERVER_OBJECTS)
 	$(LINKER)  $@  $(SERVER_OBJECTS)
 	@echo "Link complete!"
 
-$(OBJDIR)/%.o:	%.c common.h packet.h
+$(OBJDIR)/%.o:	%.c obj/common.h obj/packet.h
 	$(CC) $(CFLAGS)  $< -o $@
 	@echo "Compilation complete!"
 

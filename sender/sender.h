@@ -23,11 +23,16 @@
 #define BUFFER_SIZE 10  // As per window size
 #define PACKET_SIZE 1024
 
+extern int verbose;
+
 typedef struct {
     int seqNo;
     int size;
     char data[PACKET_SIZE];
 } Packet;
+
+/* packet.c */
+int get_data_size(tcp_packet *pkt);
 
 
 #endif

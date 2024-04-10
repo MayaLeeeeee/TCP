@@ -1,3 +1,6 @@
+#ifndef PACKET_H
+# define PACKET_H
+
 enum packet_type {
     DATA,
     ACK,
@@ -22,3 +25,5 @@ typedef struct {
 
 tcp_packet* make_packet(int seq);
 int get_data_size(tcp_packet *pkt);
+
+#endif

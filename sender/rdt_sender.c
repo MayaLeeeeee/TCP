@@ -1,4 +1,5 @@
 #include "sender.h"
+#include "../obj/packet.h"
 
 int next_seqno=0;
 int send_base=0;

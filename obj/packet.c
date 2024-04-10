@@ -1,6 +1,8 @@
 #include <stdlib.h>
 #include"packet.h"
 
+int verbose = 0;
+
 static tcp_packet zero_packet = {.hdr={0}};
 /*
  * create TCP packet with header and space for data of size len
