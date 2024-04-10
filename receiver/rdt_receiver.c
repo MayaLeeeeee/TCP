@@ -21,6 +21,7 @@
  */
 tcp_packet *recvpkt;
 tcp_packet *sndpkt;
+tcp_packet *last_acked_pkt;
 
 int next_seqno = 0;
 int window_size = 10;
@@ -28,13 +29,18 @@ int cur_buffer_size = 0;
 
 struct tcp_packet packet_buffer[window_size];
 
-void append_buffer(struct tcp_packet *pkt)
+void update_seqno()
+{
+    next_seqno = last_acked_pkt->hdr.seqno + last_acked_pkt->hdr.data_size;
+}
+
+void append_buffer(struct tcp_packet **pkt)
 {
     packet_buffer[cur_buffer_size] = pkt;
     cur_buffer_size++;
 }
 
-void pop_buffer(struct tcp_packet *pkt)
+void pop_buffer(struct tcp_packet **pkt)
 {
     // int buffer_len = sizeof(packet_buffer) / sizeof(packet_buffer[0]);
     for (int i = 0; i < cur_buffer_size; i++) 
@@ -54,13 +60,46 @@ void pop_buffer(struct tcp_packet *pkt)
 void send_ack(int sockfd, struct sockaddr_in *clientaddr)
 {
     sndpkt = make_packet(0);
-    sndpkt->hdr.ackno = recvpkt->hdr.seqno + recvpkt->hdr.data_size;
+    sndpkt->hdr.ackno = last_acked_pkt->hdr.seqno + last_acked_pkt->hdr.data_size;
     sndpkt->hdr.ctr_flags = ACK;
     if (sendto(sockfd, sndpkt, TCP_HDR_SIZE, 0, 
             (struct sockaddr *) &clientaddr, clientlen) < 0) {
         error("ERROR in sendto");
     }
-    next_seqno = sndpkt->hdr.ackno + 1;
+    next_seqno = sndpkt->hdr.ackno;
+}
+
+void write_to_file(FILE **fp, struct timeval *tp, struct tcp_packet **pkt)
+{
+    gettimeofday(&tp, NULL);
+    VLOG(DEBUG, "%lu, %d, %d", tp.tv_sec, *pkt->hdr.data_size, *pkt->hdr.seqno);
+
+    fseek(*fp, *pkt->hdr.seqno, SEEK_SET);
+    fwrite(*pkt->data, 1, *pkt->hdr.data_size, fp);
+}
+
+void write_buffered_packets(FILE **fp, struct timeval *tp)
+{
+    int next_pkt_found = 1; // flag to determine if a subsequent packet is in the buffer
+    while (next_pkt_found == 1)
+    {
+        for (int i = 0; i < cur_buffer_size; i++)
+        {
+            if (packet_buffer[i]->hdr.seqno == next_seqno)
+            {
+                write_to_file(&fp, tp, &packet_buffer[i]);
+                last_acked_pkt = packet_buffer[i];
+                update_seqno();
+                pop_buffer(&packet_buffer[i]);
+                break;
+            }
+
+            if (i == cur_buffer_size-1)
+            {
+                next_pkt_found = 0;
+            }
+        }
+    }
 }
 
 int main(int argc, char **argv) {
@@ -147,17 +186,32 @@ int main(int argc, char **argv) {
             /* 
             * sendto: ACK back to the client 
             */
-            gettimeofday(&tp, NULL);
-            VLOG(DEBUG, "%lu, %d, %d", tp.tv_sec, recvpkt->hdr.data_size, recvpkt->hdr.seqno);
+            // gettimeofday(&tp, NULL);
+            // VLOG(DEBUG, "%lu, %d, %d", tp.tv_sec, recvpkt->hdr.data_size, recvpkt->hdr.seqno);
 
-            fseek(fp, recvpkt->hdr.seqno, SEEK_SET);
-            fwrite(recvpkt->data, 1, recvpkt->hdr.data_size, fp);
+            // fseek(fp, recvpkt->hdr.seqno, SEEK_SET);
+            // fwrite(recvpkt->data, 1, recvpkt->hdr.data_size, fp);
+            write_to_file(&fp, tp, &recvpkt);
+
+            last_acked_pkt = recvpkt;
 
             send_ack(sockfd, &clientaddr);
+
+            if (cur_buffer_size > 0) 
+            {
+                write_buffered_packets(&fp);
+
+                send_ack(sockfd, &clientaddr);
+            }
         }
         else if (recvpkt->hdr.seqno > next_seqno) // a later packet is received before the one we're waiting for currently
         {
             append_buffer(recvpkt);
+            send_ack(sockfd, &clientaddr);
+        }
+        else // received a packet that is already acked
+        {
+            send_ack(sockfd, &clientaddr);
         }
 
     }
