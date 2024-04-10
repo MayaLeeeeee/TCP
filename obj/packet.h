@@ -6,7 +6,7 @@ enum packet_type {
     ACK,
 };
 
-typedef struct {
+typedef struct tcp_header{
     int seqno;
     int ackno;
     int ctr_flags;
@@ -18,7 +18,7 @@ typedef struct {
 #define IP_HDR_SIZE    20
 #define TCP_HDR_SIZE    sizeof(tcp_header)
 #define DATA_SIZE   (MSS_SIZE - TCP_HDR_SIZE - UDP_HDR_SIZE - IP_HDR_SIZE)
-typedef struct {
+typedef struct tcp_packet{
     tcp_header  hdr;
     char    data[0];
 }tcp_packet;
