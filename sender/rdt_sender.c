@@ -141,7 +141,10 @@ int main (int argc, char **argv)
     }
     hostname = argv[1];
     portno = atoi(argv[2]);
+    // char file_name = "./sender/";
+    // strcat(file_name, arg[3]);
     fp = fopen(argv[3], "rb"); //starter code: r
+    // fp = fopen(file_name, "rb"); //starter code: r
     if (fp == NULL) {
         error(argv[3]);
     }

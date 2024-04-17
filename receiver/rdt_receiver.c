@@ -32,6 +32,8 @@ int cur_buffer_size = 0;
 
 struct tcp_packet *packet_buffer[WINDOW_SIZE];
 
+struct sockaddr_in clientaddr; /* client addr */
+
 void update_seqno()
 {
     next_seqno = last_acked_pkt->hdr.seqno + last_acked_pkt->hdr.data_size;
@@ -60,7 +62,7 @@ void pop_buffer(struct tcp_packet **pkt)
     }
 }
 
-void send_ack(int sockfd, struct sockaddr_in *clientaddr, int clientlen)
+void send_ack(int sockfd, int clientlen)
 {
     sndpkt = make_packet(0);
     sndpkt->hdr.ackno = last_acked_pkt->hdr.seqno + last_acked_pkt->hdr.data_size;
@@ -139,7 +141,7 @@ int main(int argc, char **argv) {
     int portno; /* port to listen on */
     int clientlen; /* byte size of client's address */
     struct sockaddr_in serveraddr; /* server's addr */
-    struct sockaddr_in clientaddr; /* client addr */
+    // struct sockaddr_in clientaddr; /* client addr */
     int optval; /* flag value for setsockopt */
     FILE *fp;
     char buffer[MSS_SIZE];
@@ -231,23 +233,23 @@ int main(int argc, char **argv) {
 
             last_acked_pkt = recvpkt;
 
-            send_ack(sockfd, &clientaddr, clientlen);
+            send_ack(sockfd, clientlen);
 
             if (cur_buffer_size > 0) 
             {
                 write_buffered_packets(&fp, &tp);
 
-                send_ack(sockfd, &clientaddr, clientlen);
+                send_ack(sockfd, clientlen);
             }
         }
         else if (recvpkt->hdr.seqno > next_seqno) // a later packet is received before the one we're waiting for currently
         {
             append_buffer(recvpkt);
-            send_ack(sockfd, &clientaddr, clientlen);
+            send_ack(sockfd, clientlen);
         }
         else // received a packet that is already acked
         {
-            send_ack(sockfd, &clientaddr, clientlen);
+            send_ack(sockfd, clientlen);
         }
 
     }
