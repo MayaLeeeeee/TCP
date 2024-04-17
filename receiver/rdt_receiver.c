@@ -74,9 +74,38 @@ void send_ack(int sockfd, struct sockaddr_in *clientaddr, int clientlen)
 
 void write_to_file(FILE **fp, struct timeval *tp, struct tcp_packet **pkt)
 {
-    gettimeofday(&tp, NULL);
+	printf("starting write to file\n");
+    //gettimeofday(&tp, NULL);
+
+	/* if (fp == NULL || pkt == NULL || *pkt == NULL)
+	{
+		fprintf(stderr, "Error) null pointer (write to file function)\n");
+		return ;
+	}
+
+	if (!((*pkt)->hdr.data_size))
+	{
+		fprintf(stderr, "Error) pkt hdr size(write to file function)\n");
+		return ;
+	}
+
+	printf("seqno: %d\n", (*pkt)->hdr.seqno);
+	if (!((*pkt)->hdr.seqno))
+	{
+		fprintf(stderr, "Error) pkt hdr seqno (write to file function)\n");
+		return ;
+	} */ //segfault happening because of hdr seqno
+
+	if (*fp == NULL || *pkt == NULL || tp == NULL)
+	{
+		fprintf(stderr, "Null pointer passed to function\n");
+		return ;
+	}
+
+	printf("here1\n");
     VLOG(DEBUG, "%lu, %d, %d", (*tp).tv_sec, (*pkt)->hdr.data_size, (*pkt)->hdr.seqno);
 
+	printf("here2\n");
     fseek(*fp, (*pkt)->hdr.seqno, SEEK_SET);
     fwrite((*pkt)->data, 1, (*pkt)->hdr.data_size, fp);
 }
@@ -177,6 +206,9 @@ int main(int argc, char **argv) {
             error("ERROR in recvfrom");
         }
         recvpkt = (tcp_packet *) buffer;
+		/* printf("seqno: %d\n", recvpkt->hdr.seqno);
+		if (recvpkt->data == NULL)
+			printf("recvpkt data null\n"); */
         assert(get_data_size(recvpkt) <= DATA_SIZE);
 
         if (recvpkt->hdr.seqno == next_seqno)
@@ -194,7 +226,8 @@ int main(int argc, char **argv) {
 
             // fseek(fp, recvpkt->hdr.seqno, SEEK_SET);
             // fwrite(recvpkt->data, 1, recvpkt->hdr.data_size, fp);
-            write_to_file(&fp, &tp, &recvpkt);
+            gettimeofday(&tp, NULL);
+			write_to_file(&fp, &tp, &recvpkt);
 
             last_acked_pkt = recvpkt;
 

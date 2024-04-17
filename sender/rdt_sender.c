@@ -184,6 +184,8 @@ int main (int argc, char **argv)
         {
             VLOG(INFO, "End Of File has been reached");
             sndpkt = make_packet(0);
+			//sndpkt->hdr.seqno = next_seqno;
+			printf("sndpkt seqno updated to %d\n", sndpkt->hdr.seqno);
             sendto(sockfd, sndpkt, TCP_HDR_SIZE,  0,
                     (const struct sockaddr *)&serveraddr, serverlen);
             break;
