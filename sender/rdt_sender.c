@@ -29,24 +29,14 @@ tcp_packet *recvpkt;
 sigset_t sigmask;       
 
 
-
-void	timeout_handler(int sig)
-{
-	struct tcp_packet *pkt = make_packet(send_base);
-	sendto(sockfd, pkt, sizeof(*pkt), 0, (const struct sockaddr *)&serveraddr, serverlen);
-	free(pkt);
-
-	//restart timer
-	setitimer(ITIMER_REAL, &timer, NULL);
-}
-
 void resend_packets(int sig)
 {
     if (sig == SIGALRM)
     {
         //Resend all packets range between 
         //sendBase and nextSeqNum
-        VLOG(INFO, "Timout happend");
+        //VLOG(INFO, "Timout happend");
+		VLOG(INFO, "Resending Packets");
         if(sendto(sockfd, sndpkt, TCP_HDR_SIZE + get_data_size(sndpkt), 0, 
                     ( const struct sockaddr *)&serveraddr, serverlen) < 0)
         {
@@ -59,14 +49,15 @@ void	send_packet(void)
 {
 	while (next_seqno < send_base + window_size)
 	{
-		struct tcp_packet *pkt = make_packet(next_seqno);
-		sendto(sockfd, pkt, sizeof(*pkt), 0, (const struct sockaddr *)&serveraddr, serverlen);
-		free(pkt);
+		//struct tcp_packet *pkt = make_packet(next_seqno);
+		//sendto(sockfd, pkt, sizeof(*pkt), 0, (const struct sockaddr *)&serveraddr, serverlen);
+		sendto(sockfd, sndpkt, TCP_HDR_SIZE + get_data_size(sndpkt), 0, (const struct sockaddr *)&serveraddr, serverlen);
+		//free(pkt);
 		next_seqno++;
 	}
 }
 
-void	receive_ack(void)
+/* void	receive_ack(void)
 {
 	struct tcp_packet	pkt;
 
@@ -87,6 +78,20 @@ void	receive_ack(void)
 		else // reset timer
 			setitimer(ITIMER_REAL, &timer, NULL);
 	}
+} */
+
+void	receive_ack(void)
+{
+	char	buffer[1024];
+
+	int	length = recvfrom(sockfd, &recvpkt, sizeof(recvpkt), 0, NULL, NULL);
+	if (length > 0)
+	{
+		stop_timer();
+		printf("ACK received\n");
+	}
+	else
+		perror("recvfrom");
 }
 
 
@@ -136,7 +141,7 @@ int main (int argc, char **argv)
     }
     hostname = argv[1];
     portno = atoi(argv[2]);
-    fp = fopen(argv[3], "r");
+    fp = fopen(argv[3], "rb"); //starter code: r
     if (fp == NULL) {
         error(argv[3]);
     }
@@ -165,15 +170,13 @@ int main (int argc, char **argv)
 
     //Stop and wait protocol
 
-	//set up signal handler for time outs
-	signal(SIGALRM, timeout_handler);
     init_timer(RETRY, resend_packets);
     next_seqno = 0;
 
-	send_packet();
-	receive_ack();
+	//send_packet();
+	//receive_ack();
 
-	/*
+	
     while (1)
     {
         len = fread(buffer, 1, DATA_SIZE, fp);
@@ -228,7 +231,7 @@ int main (int argc, char **argv)
 
         free(sndpkt);
     }
-	*/
+	
 
     return 0;
 
