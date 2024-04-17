@@ -109,7 +109,10 @@ void write_to_file(FILE **fp, struct timeval *tp, struct tcp_packet **pkt)
 
 	printf("here2\n");
     fseek(*fp, (*pkt)->hdr.seqno, SEEK_SET);
-    fwrite((*pkt)->data, 1, (*pkt)->hdr.data_size, fp);
+	printf("here3\n");
+    fwrite((*pkt)->data, 1, (*pkt)->hdr.data_size, *fp);
+	fflush(*fp);
+	printf("FILE TO WRITE: %s", (*pkt)->data);
 }
 
 void write_buffered_packets(FILE **fp, struct timeval *tp)
