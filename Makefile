@@ -17,8 +17,8 @@ CLIENT_OBJECTS := sender/rdt_sender.o $(OBJDIR)/common.o $(OBJDIR)/packet.o
 SERVER_OBJECTS := receiver/rdt_receiver.o $(OBJDIR)/common.o $(OBJDIR)/packet.o
 
 #Program name
-CLIENT := $(OBJDIR)/rdt_sender
-SERVER := $(OBJDIR)/rdt_receiver
+CLIENT := rdt_sender
+SERVER := rdt_receiver
 
 rm       = rm -f
 rmdir    = rmdir 
