@@ -104,15 +104,15 @@ void write_to_file(FILE **fp, struct timeval *tp, struct tcp_packet **pkt)
 		return ;
 	}
 
-	printf("here1\n");
+	// printf("here1\n");
     VLOG(DEBUG, "%lu, %d, %d", (*tp).tv_sec, (*pkt)->hdr.data_size, (*pkt)->hdr.seqno);
 
-	printf("here2\n");
+	// printf("here2\n");
     fseek(*fp, (*pkt)->hdr.seqno, SEEK_SET);
-	printf("here3\n");
+	// printf("here3\n");
     fwrite((*pkt)->data, 1, (*pkt)->hdr.data_size, *fp);
 	fflush(*fp);
-	printf("FILE TO WRITE: %s", (*pkt)->data);
+	// printf("FILE TO WRITE: %s", (*pkt)->data);
 }
 
 void write_buffered_packets(FILE **fp, struct timeval *tp)
@@ -157,6 +157,10 @@ int main(int argc, char **argv) {
         fprintf(stderr, "usage: %s <port> FILE_RECVD\n", argv[0]);
         exit(1);
     }
+
+    // printf("shell address: %s\n", argv[1]);
+    // fflush(stdout);
+
     portno = atoi(argv[1]);
 
     fp  = fopen(argv[2], "w");
@@ -186,7 +190,16 @@ int main(int argc, char **argv) {
     bzero((char *) &serveraddr, sizeof(serveraddr));
     serveraddr.sin_family = AF_INET;
     serveraddr.sin_addr.s_addr = htonl(INADDR_ANY);
+    // serveraddr.sin_addr.s_addr = inet_addr(argv[1]);
+    // serveraddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    // printf("shell address: %s\n", inet_ntop(serveraddr.sin_addr.s_addr));
     serveraddr.sin_port = htons((unsigned short)portno);
+
+    char sa_buffer[INET_ADDRSTRLEN];
+
+    inet_ntop(AF_INET, &clientaddr.sin_addr, sa_buffer, sizeof(sa_buffer));
+    printf("client address: '%s'\n", sa_buffer);
+    fflush(stdout);
 
     /* 
      * bind: associate the parent socket with a port 
