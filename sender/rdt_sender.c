@@ -32,7 +32,7 @@ struct itimerval timer;
 tcp_packet *sndpkt;
 tcp_packet *recvpkt;
 sigset_t sigmask;
-tcp_packet	buffer[10];
+tcp_packet	*packetBufer[10];
 
 
 void resend_packets(int sig)
@@ -176,7 +176,7 @@ int main (int argc, char **argv)
         		sndpkt = make_packet(len);
         		memcpy(sndpkt->data, buffer, len);
         		sndpkt->hdr.seqno = send_base;
-				buffer[i] = sndpkt;
+				packetBufer[i] = sndpkt;
 			}
 		}
         //Wait for ACK
@@ -184,18 +184,19 @@ int main (int argc, char **argv)
 
 			for (int i = 0; i < window_size; i++)
 			{
-            	VLOG(DEBUG, "Sending packet %d to %s", 
-            	        send_base, inet_ntoa(serveraddr.sin_addr));
+            	/* VLOG(DEBUG, "Sending packet %d to %s", 
+            	        send_base, inet_ntoa(serveraddr.sin_addr)); */
             
             	// If the sendto is called for the first time, the system will
             	// will assign a random port number so that server can send its
             	// response to the src port.
             
-            	if(sendto(sockfd, sndpkt, TCP_HDR_SIZE + get_data_size(sndpkt), 0, 
+            	if(sendto(sockfd, packetBufer[i], TCP_HDR_SIZE + get_data_size(packetBufer[i]), 0, 
             	            ( const struct sockaddr *)&serveraddr, serverlen) < 0)
             	{
             	    error("sendto");
             	}
+				printf("sent packet with seqno %d\n", packetBufer[i]->hdr.seqno);
 			}
             start_timer();
 
