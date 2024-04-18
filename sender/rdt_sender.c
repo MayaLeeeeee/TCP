@@ -31,7 +31,8 @@ struct sockaddr_in serveraddr;
 struct itimerval timer; 
 tcp_packet *sndpkt;
 tcp_packet *recvpkt;
-sigset_t sigmask;       
+sigset_t sigmask;
+tcp_packet	buffer[10];
 
 
 void resend_packets(int sig)
@@ -156,38 +157,46 @@ int main (int argc, char **argv)
 
     while (1)
     {
-        len = fread(buffer, 1, DATA_SIZE, fp);
-        if ( len <= 0)
-        {
-            VLOG(INFO, "End Of File has been reached");
-            sndpkt = make_packet(0);
-			printf("sndpkt seqno updated to %d\n", sndpkt->hdr.seqno);
-            sendto(sockfd, sndpkt, TCP_HDR_SIZE,  0,
-                    (const struct sockaddr *)&serveraddr, serverlen);
-            break;
-        }
-        send_base = next_seqno;
-        next_seqno = send_base + len;
-        sndpkt = make_packet(len);
-        memcpy(sndpkt->data, buffer, len);
-        sndpkt->hdr.seqno = send_base;
-		
+		for (int i = 0; i < window_size; i++)
+		{
+        	len = fread(buffer, 1, DATA_SIZE, fp);
+        	if ( len <= 0)
+        	{
+        	    VLOG(INFO, "End Of File has been reached");
+        	    sndpkt = make_packet(0);
+				printf("sndpkt seqno updated to %d\n", sndpkt->hdr.seqno);
+        	    sendto(sockfd, sndpkt, TCP_HDR_SIZE,  0,
+        	            (const struct sockaddr *)&serveraddr, serverlen);
+        	    //break;
+        	}
+			else
+			{
+        		send_base = next_seqno;
+        		next_seqno = send_base + len;
+        		sndpkt = make_packet(len);
+        		memcpy(sndpkt->data, buffer, len);
+        		sndpkt->hdr.seqno = send_base;
+				buffer[i] = sndpkt;
+			}
+		}
         //Wait for ACK
         do {
 
-            VLOG(DEBUG, "Sending packet %d to %s", 
-                    send_base, inet_ntoa(serveraddr.sin_addr));
+			for (int i = 0; i < window_size; i++)
+			{
+            	VLOG(DEBUG, "Sending packet %d to %s", 
+            	        send_base, inet_ntoa(serveraddr.sin_addr));
             
-            // If the sendto is called for the first time, the system will
-            // will assign a random port number so that server can send its
-            // response to the src port.
-             
-            if(sendto(sockfd, sndpkt, TCP_HDR_SIZE + get_data_size(sndpkt), 0, 
-                        ( const struct sockaddr *)&serveraddr, serverlen) < 0)
-            {
-                error("sendto");
-            }
-
+            	// If the sendto is called for the first time, the system will
+            	// will assign a random port number so that server can send its
+            	// response to the src port.
+            
+            	if(sendto(sockfd, sndpkt, TCP_HDR_SIZE + get_data_size(sndpkt), 0, 
+            	            ( const struct sockaddr *)&serveraddr, serverlen) < 0)
+            	{
+            	    error("sendto");
+            	}
+			}
             start_timer();
 
             do
