@@ -27,7 +27,6 @@ tcp_packet *sndpkt;
 tcp_packet *last_acked_pkt;
 
 int next_seqno = 0;
-// int window_size = 10;
 int cur_buffer_size = 0;
 
 struct tcp_packet *packet_buffer[WINDOW_SIZE];
@@ -64,6 +63,7 @@ void pop_buffer(struct tcp_packet **pkt)
 
 void send_ack(int sockfd, int clientlen)
 {
+    // make ack packet
     sndpkt = make_packet(0);
     sndpkt->hdr.ackno = last_acked_pkt->hdr.seqno + last_acked_pkt->hdr.data_size;
 	printf("\treceiver sending ack#) %d\n", sndpkt->hdr.ackno);
@@ -73,32 +73,13 @@ void send_ack(int sockfd, int clientlen)
             (struct sockaddr *) &clientaddr, clientlen) < 0) {
         error("ERROR in sendto");
     }
+    // update expected seq_no
     next_seqno = sndpkt->hdr.ackno;
 }
 
 void write_to_file(FILE **fp, struct timeval *tp, struct tcp_packet **pkt)
 {
 	printf("starting write to file\n");
-    //gettimeofday(&tp, NULL);
-
-	/* if (fp == NULL || pkt == NULL || *pkt == NULL)
-	{
-		fprintf(stderr, "Error) null pointer (write to file function)\n");
-		return ;
-	}
-
-	if (!((*pkt)->hdr.data_size))
-	{
-		fprintf(stderr, "Error) pkt hdr size(write to file function)\n");
-		return ;
-	}
-
-	printf("seqno: %d\n", (*pkt)->hdr.seqno);
-	if (!((*pkt)->hdr.seqno))
-	{
-		fprintf(stderr, "Error) pkt hdr seqno (write to file function)\n");
-		return ;
-	} */ //segfault happening because of hdr seqno
 
 	if (*fp == NULL || *pkt == NULL || tp == NULL)
 	{
@@ -106,15 +87,12 @@ void write_to_file(FILE **fp, struct timeval *tp, struct tcp_packet **pkt)
 		return ;
 	}
 
-	// printf("here1\n");
     VLOG(DEBUG, "%lu, %d, %d", (*tp).tv_sec, (*pkt)->hdr.data_size, (*pkt)->hdr.seqno);
 
-	// printf("here2\n");
+    // write packet content to file
     fseek(*fp, (*pkt)->hdr.seqno, SEEK_SET);
-	// printf("here3\n");
     fwrite((*pkt)->data, 1, (*pkt)->hdr.data_size, *fp);
 	fflush(*fp);
-	// printf("FILE TO WRITE: %s", (*pkt)->data);
 }
 
 void write_buffered_packets(FILE **fp, struct timeval *tp)
@@ -122,6 +100,7 @@ void write_buffered_packets(FILE **fp, struct timeval *tp)
     int next_pkt_found = 1; // flag to determine if a subsequent packet is in the buffer
     while (next_pkt_found == 1)
     {
+        // loop over buffered pakcets and write them to file
         for (int i = 0; i < cur_buffer_size; i++)
         {
             if (packet_buffer[i]->hdr.seqno == next_seqno)
@@ -133,6 +112,7 @@ void write_buffered_packets(FILE **fp, struct timeval *tp)
                 break;
             }
 
+            // terminate once you write to file
             if (i == cur_buffer_size-1)
             {
                 next_pkt_found = 0;
@@ -159,9 +139,6 @@ int main(int argc, char **argv) {
         fprintf(stderr, "usage: %s <port> FILE_RECVD\n", argv[0]);
         exit(1);
     }
-
-    // printf("shell address: %s\n", argv[1]);
-    // fflush(stdout);
 
     portno = atoi(argv[1]);
 
@@ -192,9 +169,6 @@ int main(int argc, char **argv) {
     bzero((char *) &serveraddr, sizeof(serveraddr));
     serveraddr.sin_family = AF_INET;
     serveraddr.sin_addr.s_addr = htonl(INADDR_ANY);
-    // serveraddr.sin_addr.s_addr = inet_addr(argv[1]);
-    // serveraddr.sin_addr.s_addr = inet_addr("127.0.0.1");
-    // printf("shell address: %s\n", inet_ntop(serveraddr.sin_addr.s_addr));
     serveraddr.sin_port = htons((unsigned short)portno);
 
     char sa_buffer[INET_ADDRSTRLEN];
@@ -220,15 +194,11 @@ int main(int argc, char **argv) {
         /*
          * recvfrom: receive a UDP datagram from a client
          */
-        //VLOG(DEBUG, "waiting from server \n");
         if (recvfrom(sockfd, buffer, MSS_SIZE, 0,
                 (struct sockaddr *) &clientaddr, (socklen_t *)&clientlen) < 0) {
             error("ERROR in recvfrom");
         }
         recvpkt = (tcp_packet *) buffer;
-		/* printf("seqno: %d\n", recvpkt->hdr.seqno);
-		if (recvpkt->data == NULL)
-			printf("recvpkt data null\n"); */
         assert(get_data_size(recvpkt) <= DATA_SIZE);
 
         if (recvpkt->hdr.seqno == next_seqno)
@@ -241,11 +211,6 @@ int main(int argc, char **argv) {
             /* 
             * sendto: ACK back to the client 
             */
-            // gettimeofday(&tp, NULL);
-            // VLOG(DEBUG, "%lu, %d, %d", tp.tv_sec, recvpkt->hdr.data_size, recvpkt->hdr.seqno);
-
-            // fseek(fp, recvpkt->hdr.seqno, SEEK_SET);
-            // fwrite(recvpkt->data, 1, recvpkt->hdr.data_size, fp);
             gettimeofday(&tp, NULL);
 			write_to_file(&fp, &tp, &recvpkt);
 
