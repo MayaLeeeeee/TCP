@@ -66,6 +66,8 @@ void send_ack(int sockfd, int clientlen)
 {
     sndpkt = make_packet(0);
     sndpkt->hdr.ackno = last_acked_pkt->hdr.seqno + last_acked_pkt->hdr.data_size;
+	printf("\treceiver sending ack#) %d\n", sndpkt->hdr.ackno);
+	printf("\tbuffer size: %d\n", cur_buffer_size);
     sndpkt->hdr.ctr_flags = ACK;
     if (sendto(sockfd, sndpkt, TCP_HDR_SIZE, 0, 
             (struct sockaddr *) &clientaddr, clientlen) < 0) {
@@ -260,11 +262,13 @@ int main(int argc, char **argv) {
         }
         else if (recvpkt->hdr.seqno > next_seqno) // a later packet is received before the one we're waiting for currently
         {
+			printf("\tpacket loss -> after exepected\n");
             append_buffer(recvpkt);
             send_ack(sockfd, clientlen);
         }
         else // received a packet that is already acked
         {
+			printf("\talready received package\n");
             send_ack(sockfd, clientlen);
         }
 

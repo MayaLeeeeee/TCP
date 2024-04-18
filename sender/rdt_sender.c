@@ -16,12 +16,13 @@
 #include"../obj/common.h"
 
 #define STDIN_FD    0
-#define RETRY  120 //millisecond
+#define RETRY  1200 //millisecond
 
 int next_seqno=0;
 int send_base=0;
 int window_size = 10;
 int dupAck_count = 0;
+int	prev_ack = -1;
 int next_expected_ack;
 bool timeout_occured = false;
 
@@ -47,9 +48,10 @@ void resend_packets(int sig)
         {
             error("sendto");
         }
-		else//
-			next_seqno++;//
+		/* else//
+			next_seqno++;// */
     }
+	dupAck_count = 0;
 }
 
 void	send_packet(void)
@@ -215,26 +217,31 @@ int main (int argc, char **argv)
                 printf("get data size(recvpkt): %d \n", get_data_size(recvpkt));
                 assert(get_data_size(recvpkt) <= DATA_SIZE);
 
-				printf("ack number: %d\n", recvpkt->hdr.ackno);
+				printf("\tprev ack: %d\n", prev_ack);
+				printf("\tack number: %d\n", recvpkt->hdr.ackno);
 				
 				// process based on ack number
 				//ADD CODE TO PROCESS BASED ON ACK NUMBER HERE
 				printf("send base: %d\n", send_base);
 				printf("next seqno: %d\n", next_seqno);
-				if (recvpkt->hdr.ackno == send_base)
+				if (recvpkt->hdr.ackno == prev_ack)
+				{
+					printf("\t\tgot dup acks\n");
 					dupAck_count++;
+				}
 				else
 					dupAck_count = 0;
 				if (recvpkt->hdr.ackno > send_base)
 					send_base = recvpkt->hdr.ackno;// move window forward
 					//alternatively, reset duplicate ACK counter for the packet that just got fully acknowledged
 				//handle retransmission upon timeout or 3 duplicates
-				if (timeout_occured || dupAck_count == 3)
+				else if (timeout_occured || dupAck_count == 3)
 					resend_packets(SIGALRM);
 					//reset timer / duplicate ACK counter as needed
-				if (recvpkt->hdr.ackno == next_expected_ack)
+				else if (recvpkt->hdr.ackno == next_expected_ack)
 					next_expected_ack++;
 				
+				prev_ack = recvpkt->hdr.ackno;
 
             }while(recvpkt->hdr.ackno < next_seqno);    //ignore duplicate ACKs
             stop_timer();
