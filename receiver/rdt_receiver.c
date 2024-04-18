@@ -30,6 +30,8 @@ int next_seqno = 0;
 // int window_size = 10;
 int cur_buffer_size = 0;
 
+int ordered_packet_count = 0;
+
 struct tcp_packet *packet_buffer[WINDOW_SIZE];
 
 struct sockaddr_in clientaddr; /* client addr */
@@ -66,8 +68,8 @@ void send_ack(int sockfd, int clientlen)
 {
     sndpkt = make_packet(0);
     sndpkt->hdr.ackno = last_acked_pkt->hdr.seqno + last_acked_pkt->hdr.data_size;
-	printf("\treceiver sending ack#) %d\n", sndpkt->hdr.ackno);
-	printf("\tbuffer size: %d\n", cur_buffer_size);
+	// printf("\treceiver sending ack#) %d\n", sndpkt->hdr.ackno);
+	// printf("\tbuffer size: %d\n", cur_buffer_size);
     sndpkt->hdr.ctr_flags = ACK;
     if (sendto(sockfd, sndpkt, TCP_HDR_SIZE, 0, 
             (struct sockaddr *) &clientaddr, clientlen) < 0) {
@@ -78,7 +80,7 @@ void send_ack(int sockfd, int clientlen)
 
 void write_to_file(FILE **fp, struct timeval *tp, struct tcp_packet **pkt)
 {
-	printf("starting write to file\n");
+	// printf("starting write to file\n");
     //gettimeofday(&tp, NULL);
 
 	/* if (fp == NULL || pkt == NULL || *pkt == NULL)
@@ -200,7 +202,7 @@ int main(int argc, char **argv) {
     char sa_buffer[INET_ADDRSTRLEN];
 
     inet_ntop(AF_INET, &clientaddr.sin_addr, sa_buffer, sizeof(sa_buffer));
-    printf("client address: '%s'\n", sa_buffer);
+    // printf("client address: '%s'\n", sa_buffer);
     fflush(stdout);
 
     /* 
@@ -217,6 +219,8 @@ int main(int argc, char **argv) {
 
     clientlen = sizeof(clientaddr);
     while (1) {
+        // printf("NUMBER OF ORDERED PACKETS: %d\n", ordered_packet_count);
+        // printf("NEXT_SEQ: %d\n", next_seqno);
         /*
          * recvfrom: receive a UDP datagram from a client
          */
@@ -233,6 +237,8 @@ int main(int argc, char **argv) {
 
         if (recvpkt->hdr.seqno == next_seqno)
         {
+            ordered_packet_count++;
+            // printf("CUR ORDERED PACKETS: %d\n", ordered_packet_count);
             if ( recvpkt->hdr.data_size == 0) {
                 //VLOG(INFO, "End Of File has been reached");
                 fclose(fp);
@@ -249,9 +255,19 @@ int main(int argc, char **argv) {
             gettimeofday(&tp, NULL);
 			write_to_file(&fp, &tp, &recvpkt);
 
-            last_acked_pkt = recvpkt;
+            if (ordered_packet_count != 0)
+            {
+                next_seqno = recvpkt->hdr.seqno + recvpkt->hdr.data_size;
+                // printf("UPDATED SEQ: %d\n", next_seqno);
+            }
 
-            send_ack(sockfd, clientlen);
+            if (ordered_packet_count == 10)
+            {
+                last_acked_pkt = recvpkt;
+
+                send_ack(sockfd, clientlen);
+                ordered_packet_count = 0;
+            }
 
             if (cur_buffer_size > 0) 
             {
@@ -262,13 +278,14 @@ int main(int argc, char **argv) {
         }
         else if (recvpkt->hdr.seqno > next_seqno) // a later packet is received before the one we're waiting for currently
         {
-			printf("\tpacket loss -> after exepected\n");
+			// printf("\tpacket loss -> after exepected\n");
             append_buffer(recvpkt);
             send_ack(sockfd, clientlen);
+            ordered_packet_count = 0;
         }
         else // received a packet that is already acked
         {
-			printf("\talready received package\n");
+			// printf("\talready received package\n");
             send_ack(sockfd, clientlen);
         }
 
