@@ -164,9 +164,10 @@ int main (int argc, char **argv)
         	{
         	    VLOG(INFO, "End Of File has been reached");
         	    sndpkt = make_packet(0);
-				printf("sndpkt seqno updated to %d\n", sndpkt->hdr.seqno);
-        	    sendto(sockfd, sndpkt, TCP_HDR_SIZE,  0,
-        	            (const struct sockaddr *)&serveraddr, serverlen);
+				packetBufer[i] = sndpkt;
+				//printf("sndpkt seqno updated to %d\n", sndpkt->hdr.seqno);
+        	    /* sendto(sockfd, sndpkt, TCP_HDR_SIZE,  0,
+        	            (const struct sockaddr *)&serveraddr, serverlen); */
         	    //break;
         	}
 			else
@@ -191,6 +192,8 @@ int main (int argc, char **argv)
             	// will assign a random port number so that server can send its
             	// response to the src port.
             
+				if (packetBufer[i]->hdr.data_size == 0)
+					return ;
             	if(sendto(sockfd, packetBufer[i], TCP_HDR_SIZE + get_data_size(packetBufer[i]), 0, 
             	            ( const struct sockaddr *)&serveraddr, serverlen) < 0)
             	{
@@ -238,7 +241,7 @@ int main (int argc, char **argv)
 				
 				prev_ack = recvpkt->hdr.ackno;
 
-            }while(recvpkt->hdr.ackno < next_seqno);    //ignore duplicate ACKs
+            }while(recvpkt->hdr.ackno < next_seqno && send_base != next_seqno);    //ignore duplicate ACKs
             stop_timer();
         } while(recvpkt->hdr.ackno != next_seqno);      
 
