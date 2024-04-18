@@ -38,9 +38,6 @@ void resend_packets(int sig)
 {
     if (sig == SIGALRM)
     {
-        //Resend all packets range between 
-        //sendBase and nextSeqNum
-        //VLOG(INFO, "Timout happend");
 		timeout_occured = true;
 		VLOG(INFO, "Resending Packets");
         if(sendto(sockfd, sndpkt, TCP_HDR_SIZE + get_data_size(sndpkt), 0, 
@@ -48,8 +45,6 @@ void resend_packets(int sig)
         {
             error("sendto");
         }
-		/* else//
-			next_seqno++;// */
     }
 	dupAck_count = 0;
 }
@@ -58,10 +53,7 @@ void	send_packet(void)
 {
 	while (next_seqno < send_base + window_size)
 	{
-		//struct tcp_packet *pkt = make_packet(next_seqno);
-		//sendto(sockfd, pkt, sizeof(*pkt), 0, (const struct sockaddr *)&serveraddr, serverlen);
 		sendto(sockfd, sndpkt, TCP_HDR_SIZE + get_data_size(sndpkt), 0, (const struct sockaddr *)&serveraddr, serverlen);
-		//free(pkt);
 		next_seqno++;
 	}
 }
@@ -129,10 +121,8 @@ int main (int argc, char **argv)
     }
     hostname = argv[1];
     portno = atoi(argv[2]);
-    // char file_name = "./sender/";
-    // strcat(file_name, arg[3]);
-    fp = fopen(argv[3], "rb"); //starter code: r
-    // fp = fopen(file_name, "rb"); //starter code: r
+    fp = fopen(argv[3], "rb");
+
     if (fp == NULL) {
         error(argv[3]);
     }
@@ -171,7 +161,6 @@ int main (int argc, char **argv)
         {
             VLOG(INFO, "End Of File has been reached");
             sndpkt = make_packet(0);
-			//sndpkt->hdr.seqno = next_seqno;
 			printf("sndpkt seqno updated to %d\n", sndpkt->hdr.seqno);
             sendto(sockfd, sndpkt, TCP_HDR_SIZE,  0,
                     (const struct sockaddr *)&serveraddr, serverlen);
@@ -198,12 +187,8 @@ int main (int argc, char **argv)
             {
                 error("sendto");
             }
-			//else//
-			//	next_seqno++;//
 
             start_timer();
-            //ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags,
-            //struct sockaddr *src_addr, socklen_t *addrlen);
 
             do
             {
@@ -233,11 +218,11 @@ int main (int argc, char **argv)
 					dupAck_count = 0;
 				if (recvpkt->hdr.ackno > send_base)
 					send_base = recvpkt->hdr.ackno;// move window forward
-					//alternatively, reset duplicate ACK counter for the packet that just got fully acknowledged
+
 				//handle retransmission upon timeout or 3 duplicates
 				else if (timeout_occured || dupAck_count == 3)
 					resend_packets(SIGALRM);
-					//reset timer / duplicate ACK counter as needed
+
 				else if (recvpkt->hdr.ackno == next_expected_ack)
 					next_expected_ack++;
 				
@@ -245,7 +230,6 @@ int main (int argc, char **argv)
 
             }while(recvpkt->hdr.ackno < next_seqno);    //ignore duplicate ACKs
             stop_timer();
-            //resend pack if don't recv ACK
         } while(recvpkt->hdr.ackno != next_seqno);      
 
         free(sndpkt);
