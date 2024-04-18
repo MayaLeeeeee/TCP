@@ -168,7 +168,7 @@ int main (int argc, char **argv)
 				//printf("sndpkt seqno updated to %d\n", sndpkt->hdr.seqno);
         	    /* sendto(sockfd, sndpkt, TCP_HDR_SIZE,  0,
         	            (const struct sockaddr *)&serveraddr, serverlen); */
-        	    //break;
+        	    break;
         	}
 			else
 			{
