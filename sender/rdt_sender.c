@@ -2,6 +2,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #include <sys/types.h> 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -20,6 +21,9 @@
 int next_seqno=0;
 int send_base=0;
 int window_size = 10;
+int dupAck_count = 0;
+int next_expected_ack;
+bool timeout_occured = false;
 
 int sockfd, serverlen;
 struct sockaddr_in serveraddr;
@@ -36,12 +40,15 @@ void resend_packets(int sig)
         //Resend all packets range between 
         //sendBase and nextSeqNum
         //VLOG(INFO, "Timout happend");
+		timeout_occured = true;
 		VLOG(INFO, "Resending Packets");
         if(sendto(sockfd, sndpkt, TCP_HDR_SIZE + get_data_size(sndpkt), 0, 
                     ( const struct sockaddr *)&serveraddr, serverlen) < 0)
         {
             error("sendto");
         }
+		else//
+			next_seqno++;//
     }
 }
 
@@ -57,28 +64,6 @@ void	send_packet(void)
 	}
 }
 
-/* void	receive_ack(void)
-{
-	struct tcp_packet	pkt;
-
-	int length = recvfrom(sockfd, &pkt, sizeof(pkt), 0, NULL, NULL);
-
-	if (length > 0 && pkt.hdr.ackno >= send_base)
-	{
-		printf("receieved ack\n");
-		send_base = pkt.hdr.ackno + 1;
-
-		//stop timer if all packets acknowledged
-		if (send_base == next_seqno)
-		{
-			timer.it_value.tv_sec = 0;
-			timer.it_value.tv_usec = 0;
-			setitimer(ITIMER_REAL, &timer, NULL);
-		}
-		else // reset timer
-			setitimer(ITIMER_REAL, &timer, NULL);
-	}
-} */
 
 void	receive_ack(void)
 {
@@ -88,7 +73,7 @@ void	receive_ack(void)
 	if (length > 0)
 	{
 		stop_timer();
-		printf("ACK received\n");
+		printf("ACK received (number: %d)\n", recvpkt->hdr.ackno);
 	}
 	else
 		perror("recvfrom");
@@ -97,6 +82,7 @@ void	receive_ack(void)
 
 void start_timer()
 {
+	timeout_occured = false;
     sigprocmask(SIG_UNBLOCK, &sigmask, NULL);
     setitimer(ITIMER_REAL, &timer, NULL);
 }
@@ -104,6 +90,7 @@ void start_timer()
 
 void stop_timer()
 {
+	timeout_occured = false;
     sigprocmask(SIG_BLOCK, &sigmask, NULL);
 }
 
@@ -129,7 +116,6 @@ void init_timer(int delay, void (*sig_handler)(int))
 int main (int argc, char **argv)
 {
     int portno, len;
-    int next_seqno;
     char *hostname;
     char buffer[DATA_SIZE];
     FILE *fp;
@@ -149,23 +135,23 @@ int main (int argc, char **argv)
         error(argv[3]);
     }
 
-    /* socket: create the socket */
+    //socket: create the socket
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     if (sockfd < 0) 
         error("ERROR opening socket");
 
 
-    /* initialize server server details */
+    //initialize server server details
     bzero((char *) &serveraddr, sizeof(serveraddr));
     serverlen = sizeof(serveraddr);
 
-    /* covert host into network byte order */
+    //covert host into network byte order
     if (inet_aton(hostname, &serveraddr.sin_addr) == 0) {
         fprintf(stderr,"ERROR, invalid host %s\n", hostname);
         exit(0);
     }
 
-    /* build the server's Internet address */
+    //build the server's Internet address
     serveraddr.sin_family = AF_INET;
     serveraddr.sin_port = htons(portno);
 
@@ -174,12 +160,7 @@ int main (int argc, char **argv)
     //Stop and wait protocol
 
     init_timer(RETRY, resend_packets);
-    next_seqno = 0;
 
-	//send_packet();
-	//receive_ack();
-
-	
     while (1)
     {
         len = fread(buffer, 1, DATA_SIZE, fp);
@@ -198,6 +179,7 @@ int main (int argc, char **argv)
         sndpkt = make_packet(len);
         memcpy(sndpkt->data, buffer, len);
         sndpkt->hdr.seqno = send_base;
+		next_expected_ack = send_base + 1;
         //Wait for ACK
         do {
 
@@ -213,6 +195,8 @@ int main (int argc, char **argv)
             {
                 error("sendto");
             }
+			else//
+				next_seqno++;//
 
             start_timer();
             //ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags,
@@ -229,6 +213,26 @@ int main (int argc, char **argv)
                 recvpkt = (tcp_packet *)buffer;
                 printf("%d \n", get_data_size(recvpkt));
                 assert(get_data_size(recvpkt) <= DATA_SIZE);
+
+				printf("ack number: %d\n", recvpkt->hdr.ackno);
+				
+				// process based on ack number
+				//ADD CODE TO PROCESS BASED ON ACK NUMBER HERE
+				if (recvpkt->hdr.ackno == send_base)
+					dupAck_count++;
+				else
+					dupAck_count = 0;
+				if (recvpkt->hdr.ackno > send_base)
+					send_base = recvpkt->hdr.ackno;// move window forward
+					//alternatively, reset duplicate ACK counter for the packet that just got fully acknowledged
+				//handle retransmission upon timeout or 3 duplicates
+				if (timeout_occured || dupAck_count == 3)
+					resend_packets(SIGALRM);
+					//reset timer / duplicate ACK counter as needed
+				if (recvpkt->hdr.ackno == next_expected_ack)
+					next_expected_ack++;
+				
+
             }while(recvpkt->hdr.ackno < next_seqno);    //ignore duplicate ACKs
             stop_timer();
             //resend pack if don't recv ACK
