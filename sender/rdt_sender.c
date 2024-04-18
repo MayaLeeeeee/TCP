@@ -160,6 +160,7 @@ int main (int argc, char **argv)
     //Stop and wait protocol
 
     init_timer(RETRY, resend_packets);
+	next_expected_ack = send_base + 1;
 
     while (1)
     {
@@ -179,7 +180,7 @@ int main (int argc, char **argv)
         sndpkt = make_packet(len);
         memcpy(sndpkt->data, buffer, len);
         sndpkt->hdr.seqno = send_base;
-		next_expected_ack = send_base + 1;
+		
         //Wait for ACK
         do {
 
@@ -195,8 +196,8 @@ int main (int argc, char **argv)
             {
                 error("sendto");
             }
-			else//
-				next_seqno++;//
+			//else//
+			//	next_seqno++;//
 
             start_timer();
             //ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags,
@@ -211,13 +212,15 @@ int main (int argc, char **argv)
                 }
 
                 recvpkt = (tcp_packet *)buffer;
-                printf("%d \n", get_data_size(recvpkt));
+                printf("get data size(recvpkt): %d \n", get_data_size(recvpkt));
                 assert(get_data_size(recvpkt) <= DATA_SIZE);
 
 				printf("ack number: %d\n", recvpkt->hdr.ackno);
 				
 				// process based on ack number
 				//ADD CODE TO PROCESS BASED ON ACK NUMBER HERE
+				printf("send base: %d\n", send_base);
+				printf("next seqno: %d\n", next_seqno);
 				if (recvpkt->hdr.ackno == send_base)
 					dupAck_count++;
 				else
