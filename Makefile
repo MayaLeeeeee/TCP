@@ -6,6 +6,7 @@ SHELL = /bin/bash
 
 # compiling flags here
 CFLAGS = -Wall -I.
+LDFLAGS = -lm -g
 
 LINKER = gcc -o
 # linking flags here
@@ -26,7 +27,7 @@ rmdir    = rmdir
 TARGET:	$(OBJDIR) $(CLIENT)	$(SERVER)
 
 $(CLIENT):	$(CLIENT_OBJECTS)
-	$(LINKER)  $@  $(CLIENT_OBJECTS)
+	$(LINKER)  $@  $(CLIENT_OBJECTS) $(LDFLAGS)
 	@echo "Link complete!"
 
 $(SERVER): $(SERVER_OBJECTS)

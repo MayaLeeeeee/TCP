@@ -11,16 +11,36 @@
 #include <sys/time.h>
 #include <time.h>
 #include <assert.h>
+#include <math.h>
 
 #include"../obj/packet.h"
 #include"../obj/common.h"
 
 #define STDIN_FD    0
 #define RETRY  1200 //millisecond
+// #define RTO_MAX 240000
+
+#define MAX_RETRANSMISSIONS 5
+#define INITIAL_RTO 3000
+#define MAX_RTO 240000
+#define ALPHA 0.125
+#define BETA 0.25
+#define BUF_SIZE 1024
+
+// int rtt = 120;
+// int rttvar = 60;
+// int rto = 3000;
+// float alpha = 0.125;
+// float beta = 0.25;
+// FILE *cwnd_csv;
+
+// float cwnd = 1.0;
+// int ssthresh = 64;
+// bool in_slow_start = true;
 
 int next_seqno=0;
 int send_base=0;
-int window_size = 10;
+// int window_size = cwnd;
 int dupAck_count = 0;
 int	prev_ack = -1;
 int next_expected_ack;
@@ -32,7 +52,25 @@ struct itimerval timer;
 tcp_packet *sndpkt;
 tcp_packet *recvpkt;
 sigset_t sigmask;
-tcp_packet	*packetBufer[10];
+tcp_packet	*packetBufer[256];
+
+float elapsed_time = 0.0;
+
+// char buffer[BUF_SIZE];
+struct timeval start, end;
+double estimated_rtt = 0.0, dev_rtt = 0.0;
+double rto = INITIAL_RTO;
+int retransmissions = 0;
+
+// Congestion control variables
+double cwnd = 1.0;
+int ssthresh = 64;
+// int dup_acks = 0;
+int last_ack = -1;
+bool slow_start = true;
+
+FILE *csv_file;
+
 
 
 void resend_packets(int sig)
@@ -52,7 +90,7 @@ void resend_packets(int sig)
 
 void	send_packet(void)
 {
-	while (next_seqno < send_base + window_size)
+	while (next_seqno < send_base + cwnd)
 	{
 		sendto(sockfd, sndpkt, TCP_HDR_SIZE + get_data_size(sndpkt), 0, (const struct sockaddr *)&serveraddr, serverlen);
 		next_seqno++;
@@ -68,7 +106,6 @@ void	receive_ack(void)
 	if (length > 0)
 	{
 		stop_timer();
-		printf("ACK received (number: %d)\n", recvpkt->hdr.ackno);
 	}
 	else
 		perror("recvfrom");
@@ -107,13 +144,89 @@ void init_timer(int delay, void (*sig_handler)(int))
     sigaddset(&sigmask, SIGALRM);
 }
 
+bool initialize_csv_logging(const char *csv_path) {
+    csv_file = fopen(csv_path, "w");
+    if (!csv_file) {
+        perror("fopen()");
+        return false;
+    }
+    // fprintf(csv_file, "cwnd,ssthresh,rto,retransmissions\n");
+    fflush(csv_file);
+    return true;
+}
+
+// void record_csv_logging(double cwnd, int ssthresh, double rto, int retransmissions) {
+//     fprintf(csv_file, "%d,%d,%d,%d\n", (int)cwnd, ssthresh, (int)rto, retransmissions);
+//     fflush(csv_file);
+// }
+
+void record_csv_logging(float elapsed_time, double cwnd, int ssthresh) {
+    fprintf(csv_file, "%f,%f,%d\n", elapsed_time, cwnd, ssthresh);
+    fflush(csv_file);
+}
+
+void close_csv_logging() {
+    if (csv_file) {
+        fclose(csv_file);
+    }
+}
+
+// Function to calculate the retransmission timeout (RTO)
+void calculate_rto(double sample_rtt) {
+    if (estimated_rtt == 0.0) {
+        // First measurement
+        estimated_rtt = sample_rtt;
+        dev_rtt = sample_rtt / 2.0;
+    } else {
+        estimated_rtt = (1 - ALPHA) * estimated_rtt + ALPHA * sample_rtt;
+        dev_rtt = (1 - BETA) * dev_rtt + BETA * fabs(sample_rtt - estimated_rtt);
+    }
+    rto = estimated_rtt + 4 * dev_rtt;
+
+    // Ensure RTO is within bounds
+    if (rto < 1) rto = 1;
+    if (rto > MAX_RTO) rto = MAX_RTO;
+}
+
+// Function to adjust the congestion window
+void adjust_cwnd(int ack_num) {
+    record_csv_logging(elapsed_time, cwnd, ssthresh);
+
+    if (ack_num == last_ack) {
+        dupAck_count++;
+        if (dupAck_count == 3) {
+            // Fast Retransmit
+            ssthresh = fmax(cwnd / 2, 2);
+            cwnd = 1;
+            dupAck_count = 0;
+            slow_start = true;
+            fprintf(stderr, "Fast Retransmit triggered: ssthresh = %d, cwnd = %f\n", ssthresh, cwnd);
+        }
+    } else {
+        dupAck_count = 0;
+        last_ack = ack_num;
+
+        if (slow_start) {
+            cwnd += 1.0;
+            if (cwnd >= ssthresh) {
+                slow_start = false;
+                fprintf(stderr, "Switching to Congestion Avoidance\n");
+            }
+        } else {
+            cwnd += 1.0 / cwnd;
+        }
+    }
+}
+
 
 int main (int argc, char **argv)
 {
     int portno, len;
     char *hostname;
     char buffer[DATA_SIZE];
-    FILE *fp;
+    // FILE *file_path;
+    struct timeval start_time, cur_time;
+
 
     /* check command line arguments */
     if (argc != 4) {
@@ -122,9 +235,10 @@ int main (int argc, char **argv)
     }
     hostname = argv[1];
     portno = atoi(argv[2]);
-    fp = fopen(argv[3], "rb");
+    // file_path = fopen(argv[3], "rb");
+    const char *file_path = argv[3];
 
-    if (fp == NULL) {
+    if (file_path == NULL) {
         error(argv[3]);
     }
 
@@ -152,22 +266,43 @@ int main (int argc, char **argv)
 
     //Stop and wait protocol
 
-    init_timer(RETRY, resend_packets);
+    init_timer(rto, resend_packets);
 	next_expected_ack = send_base + 1;
+
+    // Open file to send
+    FILE *file = fopen(file_path, "rb");
+    if (!file) {
+        perror("fopen()");
+        close(sockfd);
+        exit(1);
+    }
+
+    // Initialize CSV logging
+    const char *csv_path = "CWND.csv";
+    if (!initialize_csv_logging(csv_path)) {
+        fclose(file);
+        close(sockfd);
+        exit(1);
+    }
+
+    gettimeofday(&start_time, 0);
 
     while (1)
     {
-		for (int i = 0; i < window_size; i++)
+        // time (&rawtime);
+        // timeinfo = localtime (&rawtime);
+        // printf ( "Current local time and date: %s", asctime (timeinfo) );
+        // fprintf(cwnd_csv, "%s, CWND: %d", asctime(timeinfo), cwnd);
+        gettimeofday(&cur_time, 0);
+
+		for (int i = 0; i < cwnd; i++)
 		{
-        	len = fread(buffer, 1, DATA_SIZE, fp);
-        	if ( len <= 0)
+        	len = fread(buffer, 1, DATA_SIZE, file);
+        	if (len <= 0)
         	{
         	    VLOG(INFO, "End Of File has been reached");
         	    sndpkt = make_packet(0);
 				packetBufer[i] = sndpkt;
-				//printf("sndpkt seqno updated to %d\n", sndpkt->hdr.seqno);
-        	    /* sendto(sockfd, sndpkt, TCP_HDR_SIZE,  0,
-        	            (const struct sockaddr *)&serveraddr, serverlen); */
         	    break;
         	}
 			else
@@ -183,15 +318,8 @@ int main (int argc, char **argv)
         //Wait for ACK
         do {
 
-			for (int i = 0; i < window_size; i++)
+			for (int i = 0; i < cwnd; i++)
 			{
-            	/* VLOG(DEBUG, "Sending packet %d to %s", 
-            	        send_base, inet_ntoa(serveraddr.sin_addr)); */
-            
-            	// If the sendto is called for the first time, the system will
-            	// will assign a random port number so that server can send its
-            	// response to the src port.
-            
 				if (packetBufer[i]->hdr.data_size == 0)
 					return ;
             	if(sendto(sockfd, packetBufer[i], TCP_HDR_SIZE + get_data_size(packetBufer[i]), 0, 
@@ -202,9 +330,18 @@ int main (int argc, char **argv)
 				printf("sent packet with seqno %d\n", packetBufer[i]->hdr.seqno);
 			}
             start_timer();
+            gettimeofday(&start, NULL);
+
+            // Wait for acknowledgment
+            // char ack_buf[BUF_SIZE];
+            struct timeval timeout;
+            timeout.tv_sec = (int)rto;
+            timeout.tv_usec = (int)((rto - timeout.tv_sec) * 1000000);
+
 
             do
             {
+                elapsed_time = fabs((cur_time.tv_sec - start_time.tv_sec) * 1000.0 + (cur_time.tv_usec - start_time.tv_usec) / 1000.0);
                 if(recvfrom(sockfd, buffer, MSS_SIZE, 0,
                             (struct sockaddr *) &serveraddr, (socklen_t *)&serverlen) < 0)
                 {
@@ -212,23 +349,27 @@ int main (int argc, char **argv)
                 }
 
                 recvpkt = (tcp_packet *)buffer;
-                printf("get data size(recvpkt): %d \n", get_data_size(recvpkt));
                 assert(get_data_size(recvpkt) <= DATA_SIZE);
 
-				printf("\tprev ack: %d\n", prev_ack);
-				printf("\tack number: %d\n", recvpkt->hdr.ackno);
-				
-				// process based on ack number
-				//ADD CODE TO PROCESS BASED ON ACK NUMBER HERE
-				printf("send base: %d\n", send_base);
-				printf("next seqno: %d\n", next_seqno);
 				if (recvpkt->hdr.ackno == prev_ack)
 				{
-					printf("\t\tgot dup acks\n");
 					dupAck_count++;
+                    retransmissions++;
+                    
+                    // Exponential backoff
+                    rto *= 2;
+                    if (rto > MAX_RTO) rto = MAX_RTO;
 				}
 				else
+                {
+                    int ack_num = atoi(buffer);
+                    gettimeofday(&end, NULL);
+                    double sample_rtt = (end.tv_sec - start.tv_sec) * 1000.0 + (end.tv_usec - start.tv_usec) / 1000.0;
+                    calculate_rto(sample_rtt);
+                    adjust_cwnd(ack_num);
 					dupAck_count = 0;
+                    retransmissions = 0;
+                }
 				if (recvpkt->hdr.ackno > send_base)
 					send_base = recvpkt->hdr.ackno;// move window forward
 
@@ -243,12 +384,13 @@ int main (int argc, char **argv)
 
             }while(recvpkt->hdr.ackno < next_seqno && send_base != next_seqno);    //ignore duplicate ACKs
             stop_timer();
-        } while(recvpkt->hdr.ackno != next_seqno);      
+            // update_cwnd(cwnd+1);
+        } while(recvpkt->hdr.ackno != next_seqno);
 
         free(sndpkt);
     }
 	
-
+    close_csv_logging();
     return 0;
 
 }
