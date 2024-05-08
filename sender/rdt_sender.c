@@ -71,6 +71,8 @@ bool slow_start = true;
 
 FILE *csv_file;
 
+struct timeval start_time, cur_time;
+
 
 
 void resend_packets(int sig)
@@ -165,6 +167,8 @@ bool initialize_csv_logging(const char *csv_path) {
 // }
 
 void record_csv_logging() {
+    gettimeofday(&cur_time, 0);
+    elapsed_time = fabs((cur_time.tv_sec - start_time.tv_sec) * 1000.0 + (cur_time.tv_usec - start_time.tv_usec) / 1000.0); 
     fprintf(csv_file, "%f,%f,%d\n", elapsed_time, cwnd, ssthresh);
     fflush(csv_file);
 }
@@ -197,7 +201,7 @@ void adjust_cwnd(int ack_num) {
     record_csv_logging();
     // printf("IN ADJUST_CWND\n");
 
-    printf("ACK_NUM: %d, LAST_ACK: %d", ack_num, last_ack);
+    printf("ACK_NUM: %d, LAST_ACK: %d\n", ack_num, last_ack);
     if (ack_num != last_ack) {
         dupAck_count = 0;
         // last_ack = ack_num;
@@ -236,7 +240,8 @@ int main (int argc, char **argv)
     char *hostname;
     char buffer[DATA_SIZE];
     // FILE *file_path;
-    struct timeval start_time, cur_time;
+
+    gettimeofday(&start_time, 0);
 
 
     /* check command line arguments */
@@ -296,8 +301,6 @@ int main (int argc, char **argv)
         exit(1);
     }
 
-    gettimeofday(&start_time, 0);
-
     while (1)
     {
         // time (&rawtime);
@@ -305,7 +308,7 @@ int main (int argc, char **argv)
         // printf ( "Current local time and date: %s", asctime (timeinfo) );
         // fprintf(cwnd_csv, "%s, CWND: %d", asctime(timeinfo), cwnd);
         gettimeofday(&cur_time, 0);
-        elapsed_time = fabs((cur_time.tv_sec - start_time.tv_sec) * 1000.0 + (cur_time.tv_usec - start_time.tv_usec) / 1000.0); 
+        // elapsed_time = fabs((cur_time.tv_sec - start_time.tv_sec) * 1000.0 + (cur_time.tv_usec - start_time.tv_usec) / 1000.0); 
 
         // record_csv_logging(elapsed_time, cwnd, ssthresh);
         // record_csv_logging(elapsed_time, cwnd, ssthresh);
