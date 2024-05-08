@@ -84,6 +84,10 @@ void resend_packets(int sig)
         {
             error("sendto");
         }
+
+        // Exponential backoff
+        rto *= 2;
+        if (rto > MAX_RTO) rto = MAX_RTO;
     }
 	dupAck_count = 0;
 }
@@ -358,12 +362,6 @@ int main (int argc, char **argv)
 					dupAck_count++;
                     retransmissions++;
 				}
-                else if (timeout_occured)
-                {
-                    // Exponential backoff
-                    rto *= 2;
-                    if (rto > MAX_RTO) rto = MAX_RTO;
-                }
 				else
                 {
                     int ack_num = atoi(buffer);
@@ -395,6 +393,9 @@ int main (int argc, char **argv)
 
 				else if (recvpkt->hdr.ackno == next_expected_ack)
 					next_expected_ack++;
+
+                timer.it_value.tv_sec = (int)rto / 1000;       // sets an initial value
+                timer.it_value.tv_usec = ((int)rto % 1000) * 1000;
 				
 				prev_ack = recvpkt->hdr.ackno;
 

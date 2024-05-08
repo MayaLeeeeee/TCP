@@ -20,7 +20,7 @@
  * only one send and receive packet
  */
 
-#define WINDOW_SIZE 10
+#define WINDOW_SIZE 256
 
 tcp_packet *recvpkt;
 tcp_packet *sndpkt;
