@@ -190,10 +190,10 @@ void calculate_rto(double sample_rtt) {
 
 // Function to adjust the congestion window
 void adjust_cwnd(int ack_num) {
-    record_csv_logging(elapsed_time, cwnd, ssthresh);
+    // record_csv_logging(elapsed_time, cwnd, ssthresh);
 
     if (ack_num == last_ack) {
-        dupAck_count++;
+        // dupAck_count++;
         if (dupAck_count == 3) {
             // Fast Retransmit
             ssthresh = fmax(cwnd / 2, 2);
@@ -294,6 +294,9 @@ int main (int argc, char **argv)
         // printf ( "Current local time and date: %s", asctime (timeinfo) );
         // fprintf(cwnd_csv, "%s, CWND: %d", asctime(timeinfo), cwnd);
         gettimeofday(&cur_time, 0);
+        elapsed_time = fabs((cur_time.tv_sec - start_time.tv_sec) * 1000.0 + (cur_time.tv_usec - start_time.tv_usec) / 1000.0); 
+
+        record_csv_logging(elapsed_time, cwnd, ssthresh);
 
 		for (int i = 0; i < cwnd; i++)
 		{
@@ -341,7 +344,6 @@ int main (int argc, char **argv)
 
             do
             {
-                elapsed_time = fabs((cur_time.tv_sec - start_time.tv_sec) * 1000.0 + (cur_time.tv_usec - start_time.tv_usec) / 1000.0);
                 if(recvfrom(sockfd, buffer, MSS_SIZE, 0,
                             (struct sockaddr *) &serveraddr, (socklen_t *)&serverlen) < 0)
                 {
@@ -375,7 +377,12 @@ int main (int argc, char **argv)
 
 				//handle retransmission upon timeout or 3 duplicates
 				else if (timeout_occured || dupAck_count == 3)
+                {
+                    // fast retransmit, enter slow start
+                    int ack_num = atoi(buffer);
+                    adjust_cwnd(ack_num);
 					resend_packets(SIGALRM);
+                }
 
 				else if (recvpkt->hdr.ackno == next_expected_ack)
 					next_expected_ack++;
