@@ -357,21 +357,30 @@ int main (int argc, char **argv)
 				{
 					dupAck_count++;
                     retransmissions++;
-                    
+				}
+                else if (timeout_occured)
+                {
                     // Exponential backoff
                     rto *= 2;
                     if (rto > MAX_RTO) rto = MAX_RTO;
-				}
+                }
 				else
                 {
                     int ack_num = atoi(buffer);
                     gettimeofday(&end, NULL);
                     double sample_rtt = (end.tv_sec - start.tv_sec) * 1000.0 + (end.tv_usec - start.tv_usec) / 1000.0;
                     calculate_rto(sample_rtt);
+
+                    if (sample_rtt >= rto)
+                    {
+                        timeout_occured = true;
+                    }
+
                     adjust_cwnd(ack_num);
 					dupAck_count = 0;
                     retransmissions = 0;
                 }
+
 				if (recvpkt->hdr.ackno > send_base)
 					send_base = recvpkt->hdr.ackno;// move window forward
 
