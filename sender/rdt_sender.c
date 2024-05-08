@@ -164,7 +164,7 @@ bool initialize_csv_logging(const char *csv_path) {
 //     fflush(csv_file);
 // }
 
-void record_csv_logging(float elapsed_time, double cwnd, int ssthresh) {
+void record_csv_logging() {
     fprintf(csv_file, "%f,%f,%d\n", elapsed_time, cwnd, ssthresh);
     fflush(csv_file);
 }
@@ -300,6 +300,7 @@ int main (int argc, char **argv)
         gettimeofday(&cur_time, 0);
         elapsed_time = fabs((cur_time.tv_sec - start_time.tv_sec) * 1000.0 + (cur_time.tv_usec - start_time.tv_usec) / 1000.0); 
 
+        // record_csv_logging(elapsed_time, cwnd, ssthresh);
         record_csv_logging(elapsed_time, cwnd, ssthresh);
 
 		for (int i = 0; i < cwnd; i++)
