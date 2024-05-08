@@ -194,10 +194,29 @@ void calculate_rto(double sample_rtt) {
 
 // Function to adjust the congestion window
 void adjust_cwnd(int ack_num) {
-    // record_csv_logging(elapsed_time, cwnd, ssthresh);
+    record_csv_logging();
+    // printf("IN ADJUST_CWND\n");
 
-    if (ack_num == last_ack) {
+    printf("ACK_NUM: %d, LAST_ACK: %d", ack_num, last_ack);
+    if (ack_num != last_ack) {
+        dupAck_count = 0;
+        // last_ack = ack_num;
+        printf("IN IF\n");
+        if (slow_start) {
+            printf("INCREMENTING BY 1\n");
+            cwnd += 1.0;
+            if (cwnd >= ssthresh) {
+                printf("SLOW START FALSE\n");
+                slow_start = false;
+                fprintf(stderr, "Switching to Congestion Avoidance\n");
+            }
+        } else {
+            cwnd += 1.0 / cwnd;
+        }
+    }
+    else {
         // dupAck_count++;
+        printf("ACK_NUM = LAST ACK\n");
         if (dupAck_count == 3) {
             // Fast Retransmit
             ssthresh = fmax(cwnd / 2, 2);
@@ -206,20 +225,8 @@ void adjust_cwnd(int ack_num) {
             slow_start = true;
             fprintf(stderr, "Fast Retransmit triggered: ssthresh = %d, cwnd = %f\n", ssthresh, cwnd);
         }
-    } else {
-        dupAck_count = 0;
-        last_ack = ack_num;
-
-        if (slow_start) {
-            cwnd += 1.0;
-            if (cwnd >= ssthresh) {
-                slow_start = false;
-                fprintf(stderr, "Switching to Congestion Avoidance\n");
-            }
-        } else {
-            cwnd += 1.0 / cwnd;
-        }
     }
+    last_ack = ack_num;
 }
 
 
@@ -301,7 +308,7 @@ int main (int argc, char **argv)
         elapsed_time = fabs((cur_time.tv_sec - start_time.tv_sec) * 1000.0 + (cur_time.tv_usec - start_time.tv_usec) / 1000.0); 
 
         // record_csv_logging(elapsed_time, cwnd, ssthresh);
-        record_csv_logging(elapsed_time, cwnd, ssthresh);
+        // record_csv_logging(elapsed_time, cwnd, ssthresh);
 
 		for (int i = 0; i < cwnd; i++)
 		{
@@ -349,6 +356,7 @@ int main (int argc, char **argv)
 
             do
             {
+                // slow_start = true;
                 if(recvfrom(sockfd, buffer, MSS_SIZE, 0,
                             (struct sockaddr *) &serveraddr, (socklen_t *)&serverlen) < 0)
                 {
@@ -365,7 +373,7 @@ int main (int argc, char **argv)
 				}
 				else
                 {
-                    int ack_num = atoi(buffer);
+                    // int ack_num = atoi(buffer);
                     gettimeofday(&end, NULL);
                     double sample_rtt = (end.tv_sec - start.tv_sec) * 1000.0 + (end.tv_usec - start.tv_usec) / 1000.0;
                     calculate_rto(sample_rtt);
@@ -375,7 +383,7 @@ int main (int argc, char **argv)
                         timeout_occured = true;
                     }
 
-                    adjust_cwnd(ack_num);
+                    adjust_cwnd(recvpkt->hdr.ackno);
 					dupAck_count = 0;
                     retransmissions = 0;
                 }
@@ -387,8 +395,8 @@ int main (int argc, char **argv)
 				else if (timeout_occured || dupAck_count == 3)
                 {
                     // fast retransmit, enter slow start
-                    int ack_num = atoi(buffer);
-                    adjust_cwnd(ack_num);
+                    // int ack_num = atoi(buffer);
+                    adjust_cwnd(recvpkt->hdr.ackno);
 					resend_packets(SIGALRM);
                 }
 
@@ -402,7 +410,6 @@ int main (int argc, char **argv)
 
             }while(recvpkt->hdr.ackno < next_seqno && send_base != next_seqno);    //ignore duplicate ACKs
             stop_timer();
-            // update_cwnd(cwnd+1);
         } while(recvpkt->hdr.ackno != next_seqno);
 
         free(sndpkt);
